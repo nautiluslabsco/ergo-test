@@ -7,6 +7,7 @@ import time
 from ergo_test import FunctionComponent
 from ergo_test import retries
 import docker
+import logging
 from typing import Callable, Dict, List, Optional
 
 import amqp.exceptions
@@ -25,6 +26,8 @@ except ImportError:
 from ergo.message import Message, decodes
 from ergo.topic import PubTopic
 
+logger = logging.getLogger(__file__)
+
 AMQP_HOST = "amqp://guest:guest@localhost:5672/%2F"
 CONNECTION = kombu.Connection(AMQP_HOST)
 EXCHANGE = "amq.topic"  # use a pre-declared exchange that we kind bind to while the ergo runtime is booting
@@ -38,17 +41,15 @@ class AMQPComponent(FunctionComponent):
 
     def __init__(
         self,
-        func: Callable,
-        subtopic: Optional[str] = None,
-        pubtopic: Optional[str] = None,
+        config_path: str,
         **manifest
     ):
-        super().__init__(func, **manifest)
+        super().__init__(config_path, **manifest)
+
         self.queue_name = f"{self.handler_path.replace('/', ':')[1:]}:{self.handler_name}"
         self.error_queue_name = f"{self.queue_name}:error"
-        handler_module = pathlib.Path(self.handler_path).with_suffix("").name
-        self.subtopic = subtopic or f"{handler_module}_{self.handler_name}_sub"
-        self.pubtopic = pubtopic or f"{handler_module}_{self.handler_name}_pub"
+        self.subtopic = self._config["subtopic"]
+        self.pubtopic = self._config["pubtopic"]
         self._component_queue = kombu.Queue(name=self.queue_name, exchange=EXCHANGE, routing_key=str(SubTopic(self.subtopic)))
         self._in_context: bool = False
         self._running: bool = False
@@ -188,6 +189,7 @@ def start_rabbitmq_broker():
     """
     docker_client = docker.from_env()
     if not docker_client.containers.list(filters={"name": "rabbitmq"}):
+        logger.info("starting rabbitmq container")
         docker_client.containers.run(
             name="rabbitmq",
             image="rabbitmq:3.8.16-management-alpine",
@@ -195,8 +197,8 @@ def start_rabbitmq_broker():
             detach=True,
         )
 
-    print("awaiting broker")
+    logger.info("starting rabbitmq broker")
     for retry in retries(200, 0.5, AssertionError):
         with retry():
             CONNECTION.ensure_connection()
-    print("broker started")
+    logger.info("rabbitmq broker started")

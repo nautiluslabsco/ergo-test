@@ -1,0 +1,4 @@
+func: handlers.py:product
+protocol: amqp
+subtopic: product_sub
+pubtopic: product_pub

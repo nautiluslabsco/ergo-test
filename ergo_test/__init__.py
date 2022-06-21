@@ -1,12 +1,15 @@
 import inspect
 import multiprocessing
+import pathlib
 import re
+import os
+import sys
 import tempfile
 import time
 from abc import ABC, abstractmethod
 from contextlib import ContextDecorator, contextmanager
 from typing import Callable, Dict, List, Optional, Type
-
+import importlib
 import yaml
 
 from ergo.ergo_cli import ErgoCli
@@ -61,7 +64,10 @@ def retries(n: int, backoff_seconds: float, *retry_errors: Type[Exception]):
 class Component(ContextDecorator, ABC):
     _ergo_command = "start"
 
-    def __init__(self):
+    def __init__(self, config_path: str):
+        with open(config_path, "r") as fh:
+            self._config = yaml.safe_load(fh)
+
         self._instance: Optional[ComponentInstance] = None
 
     @property
@@ -82,28 +88,26 @@ class Component(ContextDecorator, ABC):
 
 
 class FunctionComponent(Component, ABC):
-    def __init__(self, func: Callable, **manifest_kwargs):
-        super().__init__()
-        self.func = func
-        if inspect.isfunction(func):
-            self.handler_path = inspect.getfile(func)
-            self.handler_name = func.__name__
-        else:
-            # func is an instance method, and we have to get hacky to find the module variable it was assigned to
-            frame = inspect.currentframe()
-            frame = inspect.getouterframes(frame)[2]
-            string = inspect.getframeinfo(frame[0]).code_context[0].strip()
-            self.handler_path = inspect.getfile(func.__call__)
-            self.handler_name = re.search(r"\((.*?)[,)]", string).group(1)
+    def __init__(self, config_path: str, **manifest_kwargs):
+        super().__init__(config_path)
+        handler_relpath, self.handler_name = self._config["func"].rsplit(":")
+        self.handler_path = resolve_handler_path(handler_relpath)
+        manifest_kwargs["func"] = f"{self.handler_path}:{self.handler_name}"
         self._manifest_kwargs = manifest_kwargs
 
     @property
-    def manifest(self):
-        return {
-            "func": f"{self.handler_path}:{self.handler_name}",
-            **self._manifest_kwargs,
-        }
+    def manifest(self) -> dict:
+        manifest = {k: v for k, v in self._config.items()}
+        manifest.update(self._manifest_kwargs)
+        return manifest
 
     @property
     def configs(self) -> List[dict]:
         return [self.manifest, self.namespace]
+
+
+def resolve_handler_path(relpath: str) -> str:
+    for search_path in pathlib.Path(os.getcwd()).parents:
+        for candidate in search_path.rglob(relpath):
+            return str(candidate)
+    raise RuntimeError(f"failed to resolve abspath for func {relpath}")
