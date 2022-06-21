@@ -2,21 +2,19 @@ from __future__ import annotations
 
 import contextlib
 import json
-import pathlib
-import time
-from ergo_test import FunctionComponent
-from ergo_test import retries
-import docker
 import logging
-from typing import Callable, Dict, List, Optional
+import time
+from typing import Dict, List, Optional
 
 import amqp.exceptions
+import docker
 import kombu
 import kombu.pools
 import kombu.simple
 from amqp import Channel
-
 from ergo.topic import SubTopic
+
+from ergo_test import COMPONENT_TARGET, FunctionComponent, retries
 
 try:
     from collections.abc import Generator
@@ -30,9 +28,9 @@ logger = logging.getLogger(__file__)
 
 AMQP_HOST = "amqp://guest:guest@localhost:5672/%2F"
 CONNECTION = kombu.Connection(AMQP_HOST)
-EXCHANGE = "amq.topic"  # use a pre-declared exchange that we kind bind to while the ergo runtime is booting
-SHORT_TIMEOUT = 0.01
-LONG_TIMEOUT = 5
+EXCHANGE = "amq.topic"  # use a pre-declared exchange that we can bind to while the ergo runtime is booting
+SHORT_TIMEOUT = 0.01  # seconds
+LONG_TIMEOUT = 5  # seconds
 
 
 class AMQPComponent(FunctionComponent):
@@ -41,10 +39,10 @@ class AMQPComponent(FunctionComponent):
 
     def __init__(
         self,
-        config_path: str,
+        target: COMPONENT_TARGET,
         **manifest
     ):
-        super().__init__(config_path, **manifest)
+        super().__init__(target, **manifest)
 
         self.queue_name = f"{self.handler_path.replace('/', ':')[1:]}:{self.handler_name}"
         self.error_queue_name = f"{self.queue_name}:error"

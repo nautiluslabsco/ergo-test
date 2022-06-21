@@ -1,18 +1,18 @@
 import inspect
 import multiprocessing
+import os
 import pathlib
 import re
-import os
-import sys
 import tempfile
 import time
 from abc import ABC, abstractmethod
 from contextlib import ContextDecorator, contextmanager
-from typing import Callable, Dict, List, Optional, Type
-import importlib
-import yaml
+from typing import Dict, List, Optional, Type, Union
 
+import yaml
 from ergo.ergo_cli import ErgoCli
+
+COMPONENT_TARGET = Union[str, pathlib.Path, callable]
 
 
 class ComponentInstance:
@@ -64,10 +64,7 @@ def retries(n: int, backoff_seconds: float, *retry_errors: Type[Exception]):
 class Component(ContextDecorator, ABC):
     _ergo_command = "start"
 
-    def __init__(self, config_path: str):
-        with open(config_path, "r") as fh:
-            self._config = yaml.safe_load(fh)
-
+    def __init__(self):
         self._instance: Optional[ComponentInstance] = None
 
     @property
@@ -88,11 +85,34 @@ class Component(ContextDecorator, ABC):
 
 
 class FunctionComponent(Component, ABC):
-    def __init__(self, config_path: str, **manifest_kwargs):
-        super().__init__(config_path)
-        handler_relpath, self.handler_name = self._config["func"].rsplit(":")
-        self.handler_path = resolve_handler_path(handler_relpath)
-        manifest_kwargs["func"] = f"{self.handler_path}:{self.handler_name}"
+    def __init__(self, target: COMPONENT_TARGET, **manifest_kwargs):
+        super().__init__()
+        if isinstance(target, pathlib.Path):
+            target = str(target)
+        if isinstance(target, str):
+            with open(target, "r") as fh:
+                self._config = yaml.safe_load(fh)
+            handler_relpath, self.handler_name = self._config["func"].rsplit(":")
+            self.handler_path = resolve_handler_path(handler_relpath)
+            manifest_kwargs["func"] = f"{self.handler_path}:{self.handler_name}"
+        else:
+            if inspect.isfunction(target):
+                self.handler_path = inspect.getfile(target)
+                self.handler_name = target.__name__
+            else:
+                # func is an instance method, and we have to get hacky to find the module variable it was assigned to
+                frame = inspect.currentframe()
+                frame = inspect.getouterframes(frame)[2]
+                string = inspect.getframeinfo(frame[0]).code_context[0].strip()
+                self.handler_path = inspect.getfile(target.__call__)
+                self.handler_name = re.search(r"\((.*?)[,)]", string).group(1)
+            manifest_kwargs["func"] = f"{self.handler_path}:{self.handler_name}"
+
+            handler_module = pathlib.Path(self.handler_path).with_suffix("").name
+            manifest_kwargs["subtopic"] = manifest_kwargs.get("subtopic", f"{handler_module}_{self.handler_name}_sub")
+            manifest_kwargs["pubtopic"] = manifest_kwargs.get("pubtopic", f"{handler_module}_{self.handler_name}_pub")
+            self._config = manifest_kwargs
+
         self._manifest_kwargs = manifest_kwargs
 
     @property

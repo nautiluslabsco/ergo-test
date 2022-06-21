@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ergo-test"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = ["Zach Schubert <zschubert@nautiluslabs.co>"]
 packages = [
@@ -12,7 +12,7 @@ python = ">=3.7"
 requests = "^2.27.1"
 pytest = "^7.1.1"
 docker = "^5.0.3"
-ergo = "^0.8.6-alpha.0"
+ergo = ">=0.8.6-alpha.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

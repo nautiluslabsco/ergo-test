@@ -1,7 +1,9 @@
-from ergo_test import FunctionComponent
+import logging
+
 import requests
 from requests.adapters import HTTPAdapter, Retry
-import logging
+
+from ergo_test import FunctionComponent
 
 
 class HTTPComponent(FunctionComponent):
