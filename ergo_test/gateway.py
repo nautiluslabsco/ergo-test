@@ -1,5 +1,5 @@
 from ergo_test import Component
-from ergo_test.amqp import AMQP_HOST, EXCHANGE
+from ergo_test.amqp import BROKER_URL, EXCHANGE
 
 
 class HTTPGateway(Component):
@@ -8,6 +8,6 @@ class HTTPGateway(Component):
     @property
     def namespace(self):
         return {
-            "host": AMQP_HOST,
+            "host": BROKER_URL,
             "exchange": EXCHANGE,
         }

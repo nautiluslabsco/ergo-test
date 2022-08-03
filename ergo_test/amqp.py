@@ -26,11 +26,19 @@ from ergo.topic import PubTopic
 
 logger = logging.getLogger(__file__)
 
-AMQP_HOST = "amqp://guest:guest@localhost:5672/%2F"
-CONNECTION = kombu.Connection(AMQP_HOST)
+BROKER_URL = "amqp://guest:guest@localhost:5672/%2F"
+CONNECTION = kombu.Connection(BROKER_URL)
 EXCHANGE = "amq.topic"  # use a pre-declared exchange that we can bind to while the ergo runtime is booting
 SHORT_TIMEOUT = 0.01  # seconds
 LONG_TIMEOUT = 5  # seconds
+
+
+def configure(broker_url=None):
+    if broker_url:
+        global BROKER_URL
+        BROKER_URL = broker_url
+        global CONNECTION
+        CONNECTION = kombu.Connection(BROKER_URL)
 
 
 class AMQPComponent(FunctionComponent):
@@ -56,7 +64,7 @@ class AMQPComponent(FunctionComponent):
     def namespace(self):
         ns = {
             "protocol": "amqp",
-            "host": AMQP_HOST,
+            "host": BROKER_URL,
             "exchange": EXCHANGE,
             "subtopic": self.subtopic,
         }
@@ -194,9 +202,10 @@ def start_rabbitmq_broker():
             ports={5672: 5672, 15672: 15672},
             detach=True,
         )
+    block_on_broker_startup()
 
-    logger.info("starting rabbitmq broker")
+
+def block_on_broker_startup():
     for retry in retries(200, 0.5, AssertionError):
         with retry():
             CONNECTION.ensure_connection()
-    logger.info("rabbitmq broker started")
