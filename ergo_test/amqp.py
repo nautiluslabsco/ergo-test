@@ -54,8 +54,8 @@ class AMQPComponent(FunctionComponent):
 
         self.queue_name = f"{self.handler_path.replace('/', ':')[1:]}:{self.handler_name}"
         self.error_queue_name = f"{self.queue_name}:error"
-        self.subtopic = self._config["subtopic"]
-        self.pubtopic = self._config["pubtopic"]
+        self.subtopic = self.manifest["subtopic"]
+        self.pubtopic = self.manifest["pubtopic"]
         self._component_queue = kombu.Queue(name=self.queue_name, exchange=EXCHANGE, routing_key=str(SubTopic(self.subtopic)))
         self._in_context: bool = False
         self._running: bool = False
