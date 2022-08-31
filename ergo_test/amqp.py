@@ -147,7 +147,10 @@ class Queue:
 
     def get(self, block=True, timeout=LONG_TIMEOUT) -> Message:
         assert self._in_context, "This method must be called from inside a 'with' block."
-        amqp_message = self._queue.get(block=block, timeout=timeout)
+        try:
+            amqp_message = self._queue.get(block=block, timeout=timeout)
+        except self._queue.Empty:
+            raise TimeoutError(f"timeout exceeded reading from queue {self.name}")
         return decodes(amqp_message.body)
 
     def __enter__(self):
